@@ -52,7 +52,7 @@ $AMLOCALDATAPATH = "$AMLOCALTMP\$AMDATA"
 function Append-Log([string]$msg){(Get-Date).ToString() + " $msg" >> $LogFile}
 function Die([string]$msg){Append-Log $msg; throw $msg}
 function CleanUp-Session(){
-    if(Test-Path $AMLOCALTMP -PathType Container){Remove-Item $AMLOCALTMP -Recurse -WhatIf} ##REMOVE whatif for production
+    if(Test-Path $AMLOCALTMP -PathType Container){Remove-Item $AMLOCALTMP -Recurse -Force -WhatIf} ##REMOVE whatif for production
 }
 function Unzip-File(){
     param([string]$Path,[string]$Destination)
@@ -79,7 +79,7 @@ function Validate-Params(){
 }
 function Get-UserProfile(){
     Append-Log 'Searching for user profile.'
-    $UP = '' | Select-Object Type,SettingsPath,DataPath,Reg
+    $UP = '' | Select-Object Type,SettingsPath,DataPath,Reg,Data
     if(Test-Path "$CMPROFILEPATH" -PathType Container){
         # Citrix UPM
         Append-Log 'Found Citrix UPM profile.'
@@ -101,6 +101,7 @@ function Get-UserProfile(){
                 Unzip-File -Path "$AMLOCALREGZIP" -Destination "$AMLOCALREGPATH"
                 Unzip-File -Path "$AMLOCALDATAZIP" -Destination "$AMLOCALDATAPATH"
             }catch{
+                Append-Log 'Error copying/extracting Autometrix zip files to local machine.'
                 Append-Log $_.Exception.ItemName
                 Append-Log $_.Exception.Message
                 CleanUp-Session
@@ -119,11 +120,12 @@ function Get-UserProfile(){
     $UP
 }
 function Get-Settings(){
-    param([Parameter(ValueFromPipeline=$true)][psobject]$UP)         ##HERE do stuff!
+    param([Parameter(ValueFromPipeline=$true)][psobject]$UP) ##NEED logging
     try{
-        Write-Host 'testing'
+        $UP.Reg = $UP.SettingsPath | Get-Content
         $UP
     }catch{
+        Append-Log 'Error processing reg settings.'
         Append-Log $_.Exception.ItemName
         Append-Log $_.Exception.Message
         CleanUp-Session
@@ -131,10 +133,11 @@ function Get-Settings(){
     }
 }
 function Get-Data(){
-    param([Parameter(ValueFromPipeline=$true)][psobject]$UP)
+    param([Parameter(ValueFromPipeline=$true)][psobject]$UP) ##NEED logging
     try{
-        
+        $UP
     }catch{
+        Append-Log 'Error processing data.'
         Append-Log $_.Exception.ItemName
         Append-Log $_.Exception.Message
         CleanUp-Session
@@ -142,10 +145,11 @@ function Get-Data(){
     }
 }
 function Include-Settings(){
-    param([Parameter(ValueFromPipeline=$true)][psobject]$UP)
+    param([Parameter(ValueFromPipeline=$true)][psobject]$UP) ##STUB
     try{
         
     }catch{
+        Append-Log 'Error processing settings include file.'
         Append-Log $_.Exception.ItemName
         Append-Log $_.Exception.Message
         CleanUp-Session
@@ -153,10 +157,14 @@ function Include-Settings(){
     }
 }
 function Include-Data(){
-    param([Parameter(ValueFromPipeline=$true)][psobject]$UP)
+    param([Parameter(ValueFromPipeline=$true)][psobject]$UP) ##NEED logging
     try{
-        
+        $include = Get-Content $IncludeData
+        $include = $include | %{Get-ChildItem "$AMLOCALDATAPATH\*$($_.TrimEnd('\'))*" -Recurse -Force} | Get-ChildItem -Recurse -Force
+        $UP.Data = $UP.DataPath | ? name -In $include.Name
+        $UP
     }catch{
+        Append-Log 'Error processing data include file.'
         Append-Log $_.Exception.ItemName
         Append-Log $_.Exception.Message
         CleanUp-Session
@@ -164,10 +172,11 @@ function Include-Data(){
     }
 }
 function Exclude-Settings(){
-    param([Parameter(ValueFromPipeline=$true)][psobject]$UP)
+    param([Parameter(ValueFromPipeline=$true)][psobject]$UP) ##STUB
     try{
         
     }catch{
+        Append-Log 'Error processing settings include file.'
         Append-Log $_.Exception.ItemName
         Append-Log $_.Exception.Message
         CleanUp-Session
@@ -175,10 +184,11 @@ function Exclude-Settings(){
     }
 }
 function Exclude-Data(){
-    param([Parameter(ValueFromPipeline=$true)][psobject]$UP)
+    param([Parameter(ValueFromPipeline=$true)][psobject]$UP) ##STUB ##HERE
     try{
         
     }catch{
+        Append-Log 'Error processing data exclude file.'
         Append-Log $_.Exception.ItemName
         Append-Log $_.Exception.Message
         CleanUp-Session
@@ -186,10 +196,11 @@ function Exclude-Data(){
     }
 }
 function Set-Settings(){
-    param([Parameter(ValueFromPipeline=$true)][psobject]$UP)
+    param([Parameter(ValueFromPipeline=$true)][psobject]$UP) ##STUB
     try{
         
     }catch{
+        Append-Log 'Error importing reg settings.'
         Append-Log $_.Exception.ItemName
         Append-Log $_.Exception.Message
         CleanUp-Session
@@ -197,10 +208,11 @@ function Set-Settings(){
     }
 }
 function Set-Data(){
-    param([Parameter(ValueFromPipeline=$true)][psobject]$UP)
+    param([Parameter(ValueFromPipeline=$true)][psobject]$UP) ##STUB
     try{
         
     }catch{
+        Append-Log 'Error copying files to local profile.'
         Append-Log $_.Exception.ItemName
         Append-Log $_.Exception.Message
         CleanUp-Session
@@ -215,7 +227,7 @@ Validate-Params
 
 $UserProfile = Get-UserProfile
 
-$UserProfile | Get-Settings
+$UserProfile | Get-Data | Include-Data
 
 
 <#
