@@ -184,9 +184,12 @@ function Exclude-Settings(){
     }
 }
 function Exclude-Data(){
-    param([Parameter(ValueFromPipeline=$true)][psobject]$UP) ##STUB ##HERE
+    param([Parameter(ValueFromPipeline=$true)][psobject]$UP) ##NEED logging
     try{
-        
+        $exclude = Get-Content $ExcludeData
+        $exclude = $exclude | %{Get-ChildItem "$AMLOCALDATAPATH\*$($_.TrimEnd('\'))*" -Recurse -Force} | Get-ChildItem -Recurse -Force
+        $UP.Data = $UP.Data | ? name -NotIn $exclude.Name
+        $UP
     }catch{
         Append-Log 'Error processing data exclude file.'
         Append-Log $_.Exception.ItemName
@@ -227,7 +230,7 @@ Validate-Params
 
 $UserProfile = Get-UserProfile
 
-$UserProfile | Get-Data | Include-Data
+$UserProfile | Get-Data | Include-Data | Exclude-Data
 
 
 <#
