@@ -52,7 +52,7 @@ $AMLOCALDATAPATH = "$AMLOCALTMP\$AMDATA"
 function Append-Log([string]$msg){(Get-Date).ToString() + " $msg" >> $LogFile}
 function Die([string]$msg){Append-Log $msg; throw $msg}
 function CleanUp-Session(){
-    if(Test-Path $AMLOCALTMP -PathType Container){Remove-Item $AMLOCALTMP -Recurse -Force -WhatIf} ##REMOVE whatif for production
+    if(Test-Path $AMLOCALTMP -PathType Container){Remove-Item $AMLOCALTMP -Recurse -Force} ##REMOVE whatif for production
 }
 function Unzip-File(){
     param([string]$Path,[string]$Destination)
@@ -86,7 +86,7 @@ function Get-UserProfile(){
         if(!(Test-Path "$CMREGPATH\$CMREGFILE" -PathType Leaf)){Die 'Aborting. Reg file not found.'}
         $UP.Type = 'CM'
         $UP.SettingsPath = Get-ChildItem "$CMREGPATH\$CMREGFILE"
-        $UP.DataPath = Get-ChildItem -Recurse "$CMDATAPATH"
+        $UP.DataPath = "$CMDATAPATH"
     } else {
         if(Test-Path "$AMPROFILEPATH" -PathType Container){
             # Autometrix
@@ -109,7 +109,7 @@ function Get-UserProfile(){
             }
             $UP.Type = 'AM'
             $UP.SettingsPath = Get-ChildItem "$AMLOCALREGPATH" -Include "$AMREGFILE" -Recurse
-            $UP.DataPath = Get-ChildItem -Recurse "$AMLOCALDATAPATH"
+            $UP.DataPath = "$AMLOCALDATAPATH"
         } else {
             # FS-Logix
             Append-Log 'Profile not found.'
@@ -135,6 +135,7 @@ function Get-Settings(){
 function Get-Data(){
     param([Parameter(ValueFromPipeline=$true)][psobject]$UP) ##NEED logging
     try{
+        $UP.Data = Get-ChildItem "$($UP.DataPath)" -Recurse
         $UP
     }catch{
         Append-Log 'Error processing data.'
@@ -160,8 +161,8 @@ function Include-Data(){
     param([Parameter(ValueFromPipeline=$true)][psobject]$UP) ##NEED logging
     try{
         $include = Get-Content $IncludeData
-        $include = $include | %{Get-ChildItem "$AMLOCALDATAPATH\*$($_.TrimEnd('\'))*" -Recurse -Force} | Get-ChildItem -Recurse -Force
-        $UP.Data = $UP.DataPath | ? name -In $include.Name
+        $include = $include | %{Get-ChildItem "$($UP.DataPath)\*$($_.TrimEnd('\'))*" -Recurse -Force} | Get-ChildItem -Recurse -Force
+        $UP.Data = $UP.Data | ? name -In $include.Name
         $UP
     }catch{
         Append-Log 'Error processing data include file.'
@@ -187,7 +188,7 @@ function Exclude-Data(){
     param([Parameter(ValueFromPipeline=$true)][psobject]$UP) ##NEED logging
     try{
         $exclude = Get-Content $ExcludeData
-        $exclude = $exclude | %{Get-ChildItem "$AMLOCALDATAPATH\*$($_.TrimEnd('\'))*" -Recurse -Force} | Get-ChildItem -Recurse -Force
+        $exclude = $exclude | %{Get-ChildItem "$($UP.DataPath)\*$($_.TrimEnd('\'))*" -Recurse -Force} | Get-ChildItem -Recurse -Force
         $UP.Data = $UP.Data | ? name -NotIn $exclude.Name
         $UP
     }catch{
