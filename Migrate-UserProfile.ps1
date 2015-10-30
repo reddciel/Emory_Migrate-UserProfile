@@ -52,7 +52,7 @@ $AMLOCALDATAPATH = "$AMLOCALTMP\$AMDATA"
 function Append-Log([string]$msg){(Get-Date).ToString() + " $msg" >> $LogFile}
 function Die([string]$msg){Append-Log $msg; throw $msg}
 function CleanUp-Session(){
-    if(Test-Path $AMLOCALTMP -PathType Container){Remove-Item $AMLOCALTMP -Recurse -Force} ##REMOVE whatif for production
+    if(Test-Path $AMLOCALTMP -PathType Container){Remove-Item $AMLOCALTMP -Recurse -Force}
 }
 function Unzip-File(){
     param([string]$Path,[string]$Destination)
@@ -161,7 +161,7 @@ function Include-Data(){
     param([Parameter(ValueFromPipeline=$true)][psobject]$UP) ##NEED logging
     try{
         $include = Get-Content $IncludeData
-        $include = $include | %{Get-ChildItem "$($UP.DataPath)\*$($_.TrimEnd('\'))*" -Recurse -Force} | Get-ChildItem -Recurse -Force
+        $include = $include | %{Get-ChildItem "$($UP.DataPath)\$($_.Trim('\'))" -Recurse -Force} | Get-ChildItem -Recurse -Force
         $UP.Data = $UP.Data | ? name -In $include.Name
         $UP
     }catch{
@@ -188,7 +188,7 @@ function Exclude-Data(){
     param([Parameter(ValueFromPipeline=$true)][psobject]$UP) ##NEED logging
     try{
         $exclude = Get-Content $ExcludeData
-        $exclude = $exclude | %{Get-ChildItem "$($UP.DataPath)\*$($_.TrimEnd('\'))*" -Recurse -Force} | Get-ChildItem -Recurse -Force
+        $exclude = $exclude | %{Get-ChildItem "$($UP.DataPath)\$($_.Trim('\'))" -Recurse -Force} | Get-ChildItem -Recurse -Force
         $UP.Data = $UP.Data | ? name -NotIn $exclude.Name
         $UP
     }catch{
@@ -212,9 +212,17 @@ function Set-Settings(){
     }
 }
 function Set-Data(){
-    param([Parameter(ValueFromPipeline=$true)][psobject]$UP) ##STUB
+    param([Parameter(ValueFromPipeline=$true)][psobject]$UP) ##NEED logging
     try{
-        
+        $UP.Data | %{
+            $Destination = $env:USERPROFILE + $_.FullName.Substring($UP.DataPath.length)
+            if($_.psiscontainer -and !(Test-Path $Destination -PathType Container)){
+                New-Item -Path $Destination -ItemType 'Container'
+            } else {
+                Copy-Item $_.fullname -Destination $Destination -Force
+            }
+        }
+        $UP
     }catch{
         Append-Log 'Error copying files to local profile.'
         Append-Log $_.Exception.ItemName
@@ -231,7 +239,7 @@ Validate-Params
 
 $UserProfile = Get-UserProfile
 
-$UserProfile | Get-Data | Include-Data | Exclude-Data
+$UserProfile | Get-Settings
 
 
 <#
