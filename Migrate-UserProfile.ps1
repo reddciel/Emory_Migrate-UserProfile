@@ -211,7 +211,21 @@ function Include-Data(){
 function Exclude-Settings(){
     param([Parameter(ValueFromPipeline=$true)][psobject]$UP) ##STUB
     try{
-        
+        if($ExcludeSettings){
+            $exclude = Get-Content $ExcludeSettings
+            $Script:delete = $false
+            $UP.Reg = $UP.Reg | %{
+                foreach ($line in $exclude){
+                    if($line -eq ''){continue}
+                    if($_.StartsWith("[$REGKEYPREFIX")){$Script:delete = $false}
+                    if($_.StartsWith("[$REGKEYPREFIX$line")){$Script:delete = $true; break}
+                }
+                if(!$Script:delete){$_}
+            }
+        } else {
+            ##NEED logging
+        }
+        $UP
     }catch{
         Append-Log 'Error processing settings include file.'
         Append-Log $_.Exception.ItemName
@@ -285,7 +299,7 @@ $UserProfile = Get-UserProfile
 
 #$UserProfile | Get-Data | Include-Data | Exclude-Data | Set-Data
 
-$UserProfile | Get-Settings | Include-Settings
+$UserProfile | Get-Settings | Include-Settings | Exclude-Settings
 
 
 <#
