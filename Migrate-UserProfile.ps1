@@ -1,11 +1,11 @@
 ﻿[CmdletBinding()]
 param (
-    [Parameter(Mandatory=1)][string]$SharePath="",
-    [Parameter(Mandatory=1)][string]$IncludeSettings="",
-    [Parameter(Mandatory=1)][string]$IncludeData="",
-    [Parameter(Mandatory=0)][string]$ExcludeSettings="",
-    [Parameter(Mandatory=0)][string]$ExcludeData="",
-    [Parameter(Mandatory=0)][string]$LogPath=""
+    [Parameter(Mandatory=0,Position=0)][string]$SharePath='',
+    [Parameter(Mandatory=0,Position=1)][string]$IncludeSettings='',
+    [Parameter(Mandatory=0,Position=2)][string]$IncludeData='',
+    [Parameter(Mandatory=0,Position=3)][string]$ExcludeSettings='',
+    [Parameter(Mandatory=0,Position=4)][string]$ExcludeData='',
+    [Parameter(Mandatory=0,Position=5)][string]$LogPath='C:\Users\cadkison\OneDrive\iVision\Documents\ps\Emory\Profile Migration\'
 )
 
 $ErrorActionPreference = 'Stop'
@@ -59,8 +59,6 @@ function Unzip-File(){
     [System.IO.Compression.ZipFile]::ExtractToDirectory($Path,$Destination)
 }
 function Validate-Params(){
-    $SharePath = $SharePath.TrimEnd('\')
-
     $Params = '' | Select-Object SharePath,IncludeSettings,IncludeData,ExcludeSettings,ExcludeData,LogPath
     $Params.SharePath = $SharePath
     $Params.IncludeSettings = $IncludeSettings
@@ -70,10 +68,11 @@ function Validate-Params(){
     $Params.LogPath = $LogPath
     Append-Log "Validating params: $Params"
 
-    if(!(Test-Path $SharePath -PathType Container)){Die 'Aborting. Remote user profile path not found.'}
+    if(!$SharePath -or !(Test-Path $SharePath -PathType Container)){Die 'Aborting. Remote user profile path not found.'}
+    $SharePath = $SharePath.TrimEnd('\')
     if(!(Test-Path $SharePath\$AMPATH -PathType Container) -or !(Test-Path $SharePath\$CMPATH -PathType Container)){Die 'Aborting. Invalid profile path. Check constants.'}
-    if(!(Test-Path $IncludeSettings -PathType Leaf)){Die 'Aborting. Settings include file not found.'}
-    if(!(Test-Path $IncludeData -PathType Leaf)){Die 'Aborting. Data include file not found.'}
+    if($IncludeSettings -and !(Test-Path $IncludeSettings -PathType Leaf)){Die 'Aborting. Settings include file not found.'}
+    if($IncludeData -and !(Test-Path $IncludeData -PathType Leaf)){Die 'Aborting. Data include file not found.'}
     if($ExcludeSettings -and !(Test-Path $ExcludeSettings -PathType Leaf)){Die 'Aborting. Settings exclude file not found.'}
     if($ExcludeData -and !(Test-Path $ExcludeData -PathType Leaf)){Die 'Aborting. Data exclude file not found.'}
 }
@@ -160,8 +159,12 @@ function Include-Settings(){
 function Include-Data(){
     param([Parameter(ValueFromPipeline=$true)][psobject]$UP) ##NEED logging
     try{
-        $include = Get-Content $IncludeData
-        $include = $include | %{Get-ChildItem "$($UP.DataPath)\$($_.Trim('\'))" -Recurse -Force} | Get-ChildItem -Recurse -Force
+        if($IncludeData){
+            $include = Get-Content $IncludeData
+            $include = $include | %{Get-ChildItem "$($UP.DataPath)\$($_.Trim('\'))" -Recurse -Force} | Get-ChildItem -Recurse -Force
+        } else {
+            ##NEED logging
+        }
         $UP.Data = $UP.Data | ? name -In $include.Name
         $UP
     }catch{
@@ -187,9 +190,13 @@ function Exclude-Settings(){
 function Exclude-Data(){
     param([Parameter(ValueFromPipeline=$true)][psobject]$UP) ##NEED logging
     try{
-        $exclude = Get-Content $ExcludeData
-        $exclude = $exclude | %{Get-ChildItem "$($UP.DataPath)\$($_.Trim('\'))" -Recurse -Force} | Get-ChildItem -Recurse -Force
-        $UP.Data = $UP.Data | ? name -NotIn $exclude.Name
+        if($ExcludeData){
+            $exclude = Get-Content $ExcludeData
+            $exclude = $exclude | %{Get-ChildItem "$($UP.DataPath)\$($_.Trim('\'))" -Recurse -Force} | Get-ChildItem -Recurse -Force
+            $UP.Data = $UP.Data | ? name -NotIn $exclude.Name
+        } else {
+            ##NEED logging
+        }
         $UP
     }catch{
         Append-Log 'Error processing data exclude file.'
@@ -214,13 +221,17 @@ function Set-Settings(){
 function Set-Data(){
     param([Parameter(ValueFromPipeline=$true)][psobject]$UP) ##NEED logging
     try{
-        $UP.Data | %{
-            $Destination = $env:USERPROFILE + $_.FullName.Substring($UP.DataPath.length)
-            if($_.psiscontainer -and !(Test-Path $Destination -PathType Container)){
-                New-Item -Path $Destination -ItemType 'Container'
-            } else {
-                Copy-Item $_.fullname -Destination $Destination -Force
+        if($UP.Data){
+            $UP.Data | %{
+                $Destination = $env:USERPROFILE + $_.FullName.Substring($UP.DataPath.length)
+                if($_.psiscontainer -and !(Test-Path $Destination -PathType Container)){
+                    New-Item -Path $Destination -ItemType 'Container'
+                } else {
+                    Copy-Item $_.fullname -Destination $Destination -Force
+                }
             }
+        } else {
+            ##NEED logging
         }
         $UP
     }catch{
@@ -238,6 +249,8 @@ Append-Log "Begin operation. User: $env:USERNAME on Computer: $env:COMPUTERNAME"
 Validate-Params
 
 $UserProfile = Get-UserProfile
+
+#$UserProfile | Get-Data | Include-Data | Exclude-Data | Set-Data
 
 $UserProfile | Get-Settings
 
