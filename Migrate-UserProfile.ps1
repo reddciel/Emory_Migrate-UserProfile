@@ -18,7 +18,7 @@ if(!$LogPath){
     } else {throw "Could not find a valid log path."}
 } else {
     if(Test-Path $LogPath -PathType Container){
-        $LogFile = Get-ChildItem $PSCommandPath | ForEach-Object{Write-Output $((Get-ChildItem $LogPath).DirectoryName[0]+'\'+($_.BaseName)+"_$env:USERNAME"+'.log')}
+        $LogFile = Get-ChildItem $PSCommandPath | ForEach-Object{Write-Output $("$LogPath"+'\'+($_.BaseName)+"_$env:USERNAME"+'.log')}
     } else {throw "Log path not found."}
 }
 if(!(Test-Path $LogFile -PathType Leaf)){(Get-Date).ToString() + ' Log file created.' > $LogFile}
@@ -46,6 +46,10 @@ $AMLOCALREGZIP = "$AMLOCALTMP\$AMREGZIP"
 $AMLOCALREGPATH = "$AMLOCALTMP\$AMREG"
 $AMLOCALDATAZIP = "$AMLOCALTMP\$AMDATAZIP"
 $AMLOCALDATAPATH = "$AMLOCALTMP\$AMDATA"
+
+$REGHEADER = 'Windows Registry Editor Version 5.00'
+$REGTMPKEYPREFIX = 'HKEY_LOCAL_MACHINE\UserReg'
+$REGKEYPREFIX = 'HKEY_CURRENT_USER'
 #endregion Constants
 
 #region ## Functions ##
@@ -107,7 +111,12 @@ function Get-UserProfile(){
                 Die 'Aborting.'
             }
             $UP.Type = 'AM'
-            $UP.SettingsPath = Get-ChildItem "$AMLOCALREGPATH" -Include "$AMREGFILE" -Recurse
+            if(Test-Path $AMLOCALREGPATH -PathType Container){
+                $UP.SettingsPath = Get-ChildItem "$AMLOCALREGPATH" -Include "$AMREGFILE" -Recurse
+            } else {
+                $UP.SettingsPath = ''
+                ##NEED logging
+            }
             $UP.DataPath = "$AMLOCALDATAPATH"
         } else {
             # FS-Logix
@@ -121,7 +130,17 @@ function Get-UserProfile(){
 function Get-Settings(){
     param([Parameter(ValueFromPipeline=$true)][psobject]$UP) ##NEED logging
     try{
-        $UP.Reg = $UP.SettingsPath | Get-Content
+        if($UP.SettingsPath){
+            $UP.Reg = $UP.SettingsPath | Get-Content
+            if($UP.Reg){
+                $UP.Reg = $UP.Reg.replace("$REGTMPKEYPREFIX","$REGKEYPREFIX")
+            } else {
+                $UP.Reg = "$REGHEADER"
+            }
+        } else {
+            $UP.Reg = "$REGHEADER"
+            ##NEED logging
+        }
         $UP
     }catch{
         Append-Log 'Error processing reg settings.'
@@ -147,7 +166,21 @@ function Get-Data(){
 function Include-Settings(){
     param([Parameter(ValueFromPipeline=$true)][psobject]$UP) ##STUB
     try{
-        
+        if($IncludeSettings){
+            $include = Get-Content $IncludeSettings
+            $Script:delete = $false
+            $UP.Reg = $UP.Reg | %{
+                foreach ($line in $include){
+                    if($line -eq ''){continue}
+                    if($_.StartsWith("[$REGKEYPREFIX")){$Script:delete = $true}
+                    if($_.StartsWith("[$REGKEYPREFIX$line") -or $_ -eq "[$REGKEYPREFIX]"){$Script:delete = $false; break}
+                }
+                if(!$Script:delete){$_}
+            }
+        } else {
+            ##NEED logging
+        }
+        $UP
     }catch{
         Append-Log 'Error processing settings include file.'
         Append-Log $_.Exception.ItemName
@@ -252,7 +285,7 @@ $UserProfile = Get-UserProfile
 
 #$UserProfile | Get-Data | Include-Data | Exclude-Data | Set-Data
 
-$UserProfile | Get-Settings
+$UserProfile | Get-Settings | Include-Settings
 
 
 <#
