@@ -97,6 +97,7 @@ function Get-UserProfile(){
             if(!(Test-Path "$AMREGPATH" -PathType Leaf)){Die 'Aborting. Settings file not found.'}
             if(!(Test-Path "$AMDATAPATH" -PathType Leaf)){Die 'Aborting. Data file not found.'}
 
+            Append-Log 'Copying/extracting Autometrix zip files to local machine.'
             try{# to copy Autometrix profile locally
                 New-Item "$AMLOCALTMP" -ItemType directory -Force | Out-Null
                 Copy-Item -Path "$AMREGPATH" -Destination "$AMLOCALTMP"
@@ -128,22 +129,25 @@ function Get-UserProfile(){
     $UP
 }
 function Get-Settings(){
-    param([Parameter(ValueFromPipeline=$true)][psobject]$UP) ##NEED logging
+    param([Parameter(ValueFromPipeline=$true)][psobject]$UP)
     try{
+        Append-Log 'Loading registry settings.'
         if($UP.SettingsPath){
             $UP.Reg = $UP.SettingsPath | Get-Content
             if($UP.Reg){
                 $UP.Reg = $UP.Reg.replace("$REGTMPKEYPREFIX","$REGKEYPREFIX")
             } else {
                 $UP.Reg = "$REGHEADER"
+                Append-Log 'Warning: Registry files contain no settings.'
             }
         } else {
             $UP.Reg = "$REGHEADER"
-            ##NEED logging
+            Append-Log 'Warning: No registry files found in user profile.'
         }
+        Append-Log 'Registry settings loaded.'
         $UP
     }catch{
-        Append-Log 'Error processing reg settings.'
+        Append-Log 'Error processing registry settings.'
         Append-Log $_.Exception.ItemName
         Append-Log $_.Exception.Message
         CleanUp-Session
@@ -151,12 +155,14 @@ function Get-Settings(){
     }
 }
 function Get-Data(){
-    param([Parameter(ValueFromPipeline=$true)][psobject]$UP) ##NEED logging
+    param([Parameter(ValueFromPipeline=$true)][psobject]$UP)
+    Append-Log 'Locating user data.'
     try{
         $UP.Data = Get-ChildItem "$($UP.DataPath)" -Recurse
+        Append-Log 'Data location loaded.'
         $UP
     }catch{
-        Append-Log 'Error processing data.'
+        Append-Log 'Error locating data.'
         Append-Log $_.Exception.ItemName
         Append-Log $_.Exception.Message
         CleanUp-Session
@@ -164,9 +170,10 @@ function Get-Data(){
     }
 }
 function Include-Settings(){
-    param([Parameter(ValueFromPipeline=$true)][psobject]$UP) ##STUB
+    param([Parameter(ValueFromPipeline=$true)][psobject]$UP)
     try{
         if($IncludeSettings){
+            Append-Log 'Processing settings include file.'
             $include = Get-Content $IncludeSettings
             $Script:delete = $false
             $UP.Reg = $UP.Reg | %{
@@ -178,8 +185,9 @@ function Include-Settings(){
                 if(!$Script:delete){$_}
             }
         } else {
-            ##NEED logging
+            Append-Log 'Warning: Settings include file not found. No registry settings will be copied.'
         }
+        Append-Log 'Settings include file applied.'
         $UP
     }catch{
         Append-Log 'Error processing settings include file.'
@@ -190,15 +198,17 @@ function Include-Settings(){
     }
 }
 function Include-Data(){
-    param([Parameter(ValueFromPipeline=$true)][psobject]$UP) ##NEED logging
+    param([Parameter(ValueFromPipeline=$true)][psobject]$UP)
     try{
         if($IncludeData){
+            Append-Log 'Processing data include file.'
             $include = Get-Content $IncludeData
             $include = $include | %{Get-ChildItem "$($UP.DataPath)\$($_.Trim('\'))" -Recurse -Force} | Get-ChildItem -Recurse -Force
         } else {
-            ##NEED logging
+            Append-Log 'Warning: Data include file not found. No user data will be copied.'
         }
         $UP.Data = $UP.Data | ? name -In $include.Name
+        Append-Log 'Data include file applied.'
         $UP
     }catch{
         Append-Log 'Error processing data include file.'
@@ -209,9 +219,10 @@ function Include-Data(){
     }
 }
 function Exclude-Settings(){
-    param([Parameter(ValueFromPipeline=$true)][psobject]$UP) ##STUB
+    param([Parameter(ValueFromPipeline=$true)][psobject]$UP)
     try{
         if($ExcludeSettings){
+            Append-Log 'Processing settings exclude file.'
             $exclude = Get-Content $ExcludeSettings
             $Script:delete = $false
             $UP.Reg = $UP.Reg | %{
@@ -223,8 +234,9 @@ function Exclude-Settings(){
                 if(!$Script:delete){$_}
             }
         } else {
-            ##NEED logging
+            Append-Log 'Warning: Settings exclude file not found.'
         }
+        Append-Log 'Settings exclude file applied.'
         $UP
     }catch{
         Append-Log 'Error processing settings include file.'
@@ -235,15 +247,17 @@ function Exclude-Settings(){
     }
 }
 function Exclude-Data(){
-    param([Parameter(ValueFromPipeline=$true)][psobject]$UP) ##NEED logging
+    param([Parameter(ValueFromPipeline=$true)][psobject]$UP)
     try{
         if($ExcludeData){
+            Append-Log 'Processing data exclude file.'
             $exclude = Get-Content $ExcludeData
             $exclude = $exclude | %{Get-ChildItem "$($UP.DataPath)\$($_.Trim('\'))" -Recurse -Force} | Get-ChildItem -Recurse -Force
             $UP.Data = $UP.Data | ? name -NotIn $exclude.Name
         } else {
-            ##NEED logging
+            Append-Log 'Warning: Data exclude file not found.'
         }
+        Append-Log 'Data exclude file applied.'
         $UP
     }catch{
         Append-Log 'Error processing data exclude file.'
@@ -256,9 +270,16 @@ function Exclude-Data(){
 function Set-Settings(){
     param([Parameter(ValueFromPipeline=$true)][psobject]$UP) ##STUB
     try{
-        
+        if($UP.Reg.Count -gt 1){ ##CHECK should be 1 or 3
+            Append-Log 'Importing registry settings.'
+            ##HERE
+        } else {
+            Append-Log 'Warning: No registry settings found. Check include/exclude files.'
+        }
+        Append-Log 'User registry settings imported.'
+        $UP
     }catch{
-        Append-Log 'Error importing reg settings.'
+        Append-Log 'Error importing registry settings.'
         Append-Log $_.Exception.ItemName
         Append-Log $_.Exception.Message
         CleanUp-Session
@@ -266,9 +287,10 @@ function Set-Settings(){
     }
 }
 function Set-Data(){
-    param([Parameter(ValueFromPipeline=$true)][psobject]$UP) ##NEED logging
+    param([Parameter(ValueFromPipeline=$true)][psobject]$UP)
     try{
         if($UP.Data){
+            Append-Log 'Copying user data to local profile.'
             $UP.Data | %{
                 $Destination = $env:USERPROFILE + $_.FullName.Substring($UP.DataPath.length)
                 if($_.psiscontainer -and !(Test-Path $Destination -PathType Container)){
@@ -278,8 +300,9 @@ function Set-Data(){
                 }
             }
         } else {
-            ##NEED logging
+            Append-Log 'Warning: No user data found. Check include/exclude files.'
         }
+        Append-Log 'User profile data copied.'
         $UP
     }catch{
         Append-Log 'Error copying files to local profile.'
@@ -297,15 +320,21 @@ Validate-Params
 
 $UserProfile = Get-UserProfile
 
+#region #### TEST CODE #### Remove this block for production
+
+
 #$UserProfile | Get-Data | Include-Data | Exclude-Data | Set-Data
 
-$UserProfile | Get-Settings | Include-Settings | Exclude-Settings
+$UserProfile | Get-Settings | Include-Settings | Exclude-Settings #| Set-Settings
 
 
-<#
+#endregion # TEST CODE #
+
+
+<## Uncomment this block for production
 if($UserProfile.Type -ne 'FS'){
+    $UserProfile = $UserProfile | Get-Data | Include-Data | Exclude-Data | Set-Data
     $UserProfile | Get-Settings | Include-Settings | Exclude-Settings | Set-Settings
-    $UserProfile | Get-Data | Include-Data | Exclude-Data | Set-Data
 }
 #>
 
