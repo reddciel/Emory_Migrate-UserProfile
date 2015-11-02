@@ -178,16 +178,21 @@ function Include-Settings(){
         if($IncludeSettings){
             Append-Log 'Processing settings include file.'
             $include = Get-Content $IncludeSettings
-            $Script:delete = $false
-            $UP.Reg = $UP.Reg | %{
-                foreach ($line in $include){
-                    if($line -eq ''){continue}
-                    if($_.StartsWith("[$REGKEYPREFIX")){$Script:delete = $true}
-                    if($_.StartsWith("[$REGKEYPREFIX$line") -or $_ -eq "[$REGKEYPREFIX]"){$Script:delete = $false; break}
+            if($include){
+                $Script:delete = $false
+                $UP.Reg = $UP.Reg | %{
+                    foreach ($line in $include){
+                        if($line -eq ''){continue}
+                        if($_.StartsWith("[$REGKEYPREFIX")){$Script:delete = $true}
+                        if($_.StartsWith("[$REGKEYPREFIX$line") -and $_ -ne "[$REGKEYPREFIX]"){$Script:delete = $false; break}
+                    }
+                    if(!$Script:delete){$_}
                 }
-                if(!$Script:delete){$_}
-            }
             Append-Log 'Settings include file applied.'
+            } else {
+                Append-Log 'Warning: Settings include file empty. No registry settings will be copied.'
+                $UP.Reg = $REGHEADER
+            }
         } else {
             Append-Log 'Warning: Settings include file not found. No registry settings will be copied.'
             $UP.Reg = $REGHEADER
@@ -226,21 +231,23 @@ function Include-Data(){
 function Exclude-Settings(){
     param([Parameter(ValueFromPipeline=$true)][psobject]$UP)
     try{
-        if($ExcludeSettings -and $IncludeSettings){
+        if($ExcludeSettings -and $UP.Reg.Count -gt 1){
             Append-Log 'Processing settings exclude file.'
             $exclude = Get-Content $ExcludeSettings
-            $Script:delete = $false
-            $UP.Reg = $UP.Reg | %{
-                foreach ($line in $exclude){
-                    if($line -eq ''){continue}
-                    if($_.StartsWith("[$REGKEYPREFIX")){$Script:delete = $false}
-                    if($_.StartsWith("[$REGKEYPREFIX$line")){$Script:delete = $true; break}
+            if($exclude){
+                $Script:delete = $false
+                $UP.Reg = $UP.Reg | %{
+                    foreach ($line in $exclude){
+                        if($line -eq ''){continue}
+                        if($_.StartsWith("[$REGKEYPREFIX")){$Script:delete = $false}
+                        if($_.StartsWith("[$REGKEYPREFIX$line")){$Script:delete = $true; break}
+                    }
+                    if(!$Script:delete){$_}
                 }
-                if(!$Script:delete){$_}
             }
             Append-Log 'Settings exclude file applied.'
         } else {
-            if($IncludeSettings){Append-Log 'Warning: Settings exclude file not found.'}
+            if($UP.Reg.Count -gt 1){Append-Log 'Warning: Settings exclude file not found.'}
         }
         $UP
     }catch{
@@ -273,13 +280,11 @@ function Exclude-Data(){
     }
 }
 function Set-Settings(){
-    param([Parameter(ValueFromPipeline=$true)][psobject]$UP) ##STUB
+    param([Parameter(ValueFromPipeline=$true)][psobject]$UP)
     try{
         if($UP.Reg.Count -gt 1){
             Append-Log 'Importing registry settings.'
-            Write-Debug $REGTMPPATH
-            $UP.Reg > $REGTMPPATH
-            
+            Set-Content -Value $UP.Reg -Path $REGTMPPATH -Encoding Unicode
             reg.exe import $REGTMPPATH
             Append-Log 'User registry settings imported.'
         } else {
@@ -328,25 +333,11 @@ Validate-Params
 
 $UserProfile = Get-UserProfile
 
-#region #### TEST CODE #### Remove this block for production
-
-
-#$UserProfile | Get-Data | Include-Data | Exclude-Data | Set-Data
-
-#$UserProfile | Get-Settings | Include-Settings | Exclude-Settings #| Set-Settings
-
-
-#endregion # TEST CODE #
-
-
-#<## Uncomment this block for production
 if($UserProfile.Type -ne 'FS'){
     $UserProfile = $UserProfile | Get-Data | Include-Data | Exclude-Data | Set-Data
     $UserProfile = $UserProfile | Get-Settings | Include-Settings | Exclude-Settings | Set-Settings
     if($PassThru){$UserProfile}
 }
-#>
-
 #endregion Main
 
 #region ## Cleanup ##
