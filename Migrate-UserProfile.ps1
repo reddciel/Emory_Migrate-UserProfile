@@ -5,7 +5,8 @@ param (
     [Parameter(Mandatory=0,Position=2)][string]$IncludeData='',
     [Parameter(Mandatory=0,Position=3)][string]$ExcludeSettings='',
     [Parameter(Mandatory=0,Position=4)][string]$ExcludeData='',
-    [Parameter(Mandatory=0,Position=5)][string]$LogPath='C:\Users\cadkison\OneDrive\iVision\Documents\ps\Emory\Profile Migration\'
+    [Parameter(Mandatory=0,Position=5)][string]$LogPath='',
+    [Parameter(Mandatory=0)][switch]$PassThru
 )
 
 $ErrorActionPreference = 'Stop'
@@ -50,6 +51,8 @@ $AMLOCALDATAPATH = "$AMLOCALTMP\$AMDATA"
 $REGHEADER = 'Windows Registry Editor Version 5.00'
 $REGTMPKEYPREFIX = 'HKEY_LOCAL_MACHINE\UserReg'
 $REGKEYPREFIX = 'HKEY_CURRENT_USER'
+$REGTMPFILE = 'ntuser_'+"$env:USERNAME"+'.reg'
+$REGTMPPATH = "$env:USERPROFILE\$REGTMPFILE"
 #endregion Constants
 
 #region ## Functions ##
@@ -184,10 +187,11 @@ function Include-Settings(){
                 }
                 if(!$Script:delete){$_}
             }
+            Append-Log 'Settings include file applied.'
         } else {
             Append-Log 'Warning: Settings include file not found. No registry settings will be copied.'
+            $UP.Reg = $REGHEADER
         }
-        Append-Log 'Settings include file applied.'
         $UP
     }catch{
         Append-Log 'Error processing settings include file.'
@@ -204,11 +208,12 @@ function Include-Data(){
             Append-Log 'Processing data include file.'
             $include = Get-Content $IncludeData
             $include = $include | %{Get-ChildItem "$($UP.DataPath)\$($_.Trim('\'))" -Recurse -Force} | Get-ChildItem -Recurse -Force
+            $UP.Data = $UP.Data | ? name -In $include.Name
+            Append-Log 'Data include file applied.'
         } else {
             Append-Log 'Warning: Data include file not found. No user data will be copied.'
+            $UP.Data = ''
         }
-        $UP.Data = $UP.Data | ? name -In $include.Name
-        Append-Log 'Data include file applied.'
         $UP
     }catch{
         Append-Log 'Error processing data include file.'
@@ -221,7 +226,7 @@ function Include-Data(){
 function Exclude-Settings(){
     param([Parameter(ValueFromPipeline=$true)][psobject]$UP)
     try{
-        if($ExcludeSettings){
+        if($ExcludeSettings -and $IncludeSettings){
             Append-Log 'Processing settings exclude file.'
             $exclude = Get-Content $ExcludeSettings
             $Script:delete = $false
@@ -233,10 +238,10 @@ function Exclude-Settings(){
                 }
                 if(!$Script:delete){$_}
             }
+            Append-Log 'Settings exclude file applied.'
         } else {
-            Append-Log 'Warning: Settings exclude file not found.'
+            if($IncludeSettings){Append-Log 'Warning: Settings exclude file not found.'}
         }
-        Append-Log 'Settings exclude file applied.'
         $UP
     }catch{
         Append-Log 'Error processing settings include file.'
@@ -249,15 +254,15 @@ function Exclude-Settings(){
 function Exclude-Data(){
     param([Parameter(ValueFromPipeline=$true)][psobject]$UP)
     try{
-        if($ExcludeData){
+        if($ExcludeData -and $IncludeData){
             Append-Log 'Processing data exclude file.'
             $exclude = Get-Content $ExcludeData
             $exclude = $exclude | %{Get-ChildItem "$($UP.DataPath)\$($_.Trim('\'))" -Recurse -Force} | Get-ChildItem -Recurse -Force
             $UP.Data = $UP.Data | ? name -NotIn $exclude.Name
+            Append-Log 'Data exclude file applied.'
         } else {
-            Append-Log 'Warning: Data exclude file not found.'
+            if($IncludeData){Append-Log 'Warning: Data exclude file not found.'}
         }
-        Append-Log 'Data exclude file applied.'
         $UP
     }catch{
         Append-Log 'Error processing data exclude file.'
@@ -270,13 +275,16 @@ function Exclude-Data(){
 function Set-Settings(){
     param([Parameter(ValueFromPipeline=$true)][psobject]$UP) ##STUB
     try{
-        if($UP.Reg.Count -gt 1){ ##CHECK should be 1 or 3
+        if($UP.Reg.Count -gt 1){
             Append-Log 'Importing registry settings.'
-            ##HERE
+            Write-Debug $REGTMPPATH
+            $UP.Reg > $REGTMPPATH
+            
+            reg.exe import $REGTMPPATH
+            Append-Log 'User registry settings imported.'
         } else {
             Append-Log 'Warning: No registry settings found. Check include/exclude files.'
         }
-        Append-Log 'User registry settings imported.'
         $UP
     }catch{
         Append-Log 'Error importing registry settings.'
@@ -299,10 +307,10 @@ function Set-Data(){
                     Copy-Item $_.fullname -Destination $Destination -Force
                 }
             }
+            Append-Log 'User profile data copied.'
         } else {
             Append-Log 'Warning: No user data found. Check include/exclude files.'
         }
-        Append-Log 'User profile data copied.'
         $UP
     }catch{
         Append-Log 'Error copying files to local profile.'
@@ -325,16 +333,17 @@ $UserProfile = Get-UserProfile
 
 #$UserProfile | Get-Data | Include-Data | Exclude-Data | Set-Data
 
-$UserProfile | Get-Settings | Include-Settings | Exclude-Settings #| Set-Settings
+#$UserProfile | Get-Settings | Include-Settings | Exclude-Settings #| Set-Settings
 
 
 #endregion # TEST CODE #
 
 
-<## Uncomment this block for production
+#<## Uncomment this block for production
 if($UserProfile.Type -ne 'FS'){
     $UserProfile = $UserProfile | Get-Data | Include-Data | Exclude-Data | Set-Data
-    $UserProfile | Get-Settings | Include-Settings | Exclude-Settings | Set-Settings
+    $UserProfile = $UserProfile | Get-Settings | Include-Settings | Exclude-Settings | Set-Settings
+    if($PassThru){$UserProfile}
 }
 #>
 
