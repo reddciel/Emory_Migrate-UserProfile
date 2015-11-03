@@ -6,6 +6,7 @@ param (
     [Parameter(Mandatory=0,Position=3)][string]$ExcludeSettings='',
     [Parameter(Mandatory=0,Position=4)][string]$ExcludeData='',
     [Parameter(Mandatory=0,Position=5)][string]$LogPath='',
+    [Parameter(Mandatory=0)][switch]$Force,
     [Parameter(Mandatory=0)][switch]$PassThru
 )
 
@@ -56,7 +57,12 @@ $REGTMPPATH = "$env:USERPROFILE\$REGTMPFILE"
 #endregion Constants
 
 #region ## Functions ##
-function Append-Log([string]$msg){(Get-Date).ToString() + " $msg" >> $LogFile}
+function Append-Log([string]$msg){
+    $msg = (Get-Date).ToString() + " $msg"
+    $msg >> $LogFile
+    Write-Verbose $msg
+    Write-Debug $msg
+}
 function Die([string]$msg){Append-Log $msg; throw $msg}
 function CleanUp-Session(){
     if(Test-Path $AMLOCALTMP -PathType Container){Remove-Item $AMLOCALTMP -Recurse -Force}
@@ -89,7 +95,7 @@ function Get-UserProfile(){
     if(Test-Path "$CMPROFILEPATH" -PathType Container){
         # Citrix UPM
         Append-Log 'Found Citrix UPM profile.'
-        if(!(Test-Path "$CMREGPATH\$CMREGFILE" -PathType Leaf)){Die 'Aborting. Reg file not found.'}
+        if(!(Test-Path "$CMREGPATH\$CMREGFILE" -PathType Leaf)){Die 'Aborting. Registry file not found.'}
         $UP.Type = 'CM'
         $UP.SettingsPath = Get-ChildItem "$CMREGPATH\$CMREGFILE"
         $UP.DataPath = "$CMDATAPATH"
@@ -119,7 +125,7 @@ function Get-UserProfile(){
                 $UP.SettingsPath = Get-ChildItem "$AMLOCALREGPATH" -Include "$AMREGFILE" -Recurse
             } else {
                 $UP.SettingsPath = ''
-                ##NEED logging
+                Die 'Aborting. Registry files not found.'
             }
             $UP.DataPath = "$AMLOCALDATAPATH"
         } else {
@@ -289,6 +295,7 @@ function Set-Settings(){
             Append-Log 'User registry settings imported.'
         } else {
             Append-Log 'Warning: No registry settings found. Check include/exclude files.'
+            Set-Content -Value $REGHEADER -Path $REGTMPPATH -Encoding Unicode
         }
         $UP
     }catch{
@@ -331,12 +338,15 @@ function Set-Data(){
 Append-Log "Begin operation. User: $env:USERNAME on Computer: $env:COMPUTERNAME"
 Validate-Params
 
-$UserProfile = Get-UserProfile
-
-if($UserProfile.Type -ne 'FS'){
-    $UserProfile = $UserProfile | Get-Data | Include-Data | Exclude-Data | Set-Data
-    $UserProfile = $UserProfile | Get-Settings | Include-Settings | Exclude-Settings | Set-Settings
-    if($PassThru){$UserProfile}
+if(!(Test-Path $REGTMPPATH -PathType Leaf) -or $Force){
+    $UserProfile = Get-UserProfile
+    if($UserProfile.Type -ne 'FS'){
+        $UserProfile = $UserProfile | Get-Data | Include-Data | Exclude-Data | Set-Data
+        $UserProfile = $UserProfile | Get-Settings | Include-Settings | Exclude-Settings | Set-Settings
+        if($PassThru){$UserProfile}
+    }
+} else {
+    Append-Log 'User has already been migrated.'
 }
 #endregion Main
 
