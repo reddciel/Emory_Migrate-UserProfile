@@ -291,7 +291,25 @@ function Set-Settings(){
         if($UP.Reg.Count -gt 1){
             Append-Log 'Importing registry settings.'
             Set-Content -Value $UP.Reg -Path $REGTMPPATH -Encoding Unicode
-            reg.exe import $REGTMPPATH
+            #$RegMsg = (reg.exe import $REGTMPPATH) | Out-String
+            #Append-Log "Reg: $RegMsg"
+            $rCmd = 'reg.exe'
+            $rArgs = @('import',"$REGTMPPATH")
+            $r = New-Object System.Diagnostics.Process
+            $r.StartInfo.FileName = $rCmd
+            $r.StartInfo.Arguments = $rArgs
+            $r.StartInfo.RedirectStandardOutput = $true
+            $r.StartInfo.RedirectStandardError = $true
+            $r.StartInfo.UseShellExecute = $false
+            $r.Start() | Out-Null
+            $r.WaitForExit()
+            $rMsg = $r.StandardError.ReadToEnd()
+            $rMsg = $rMsg.TrimEnd()
+            if($r.ExitCode -eq 0){
+                Append-Log "Reg: $rMsg"
+            } else {
+                Die "Reg: $rMsg"
+            }
             Append-Log 'User registry settings imported.'
         } else {
             Append-Log 'Warning: No registry settings found. Check include/exclude files.'
