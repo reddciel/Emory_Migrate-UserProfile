@@ -1,4 +1,101 @@
-﻿[CmdletBinding()]
+﻿<#
+.SYNOPSIS
+    Migrates user profile data and registry settings.
+
+.DESCRIPTION
+    This tool migrates user data and registry settings
+    from one of two posible locations to the user's
+    local profile.
+
+    It searches first for a Citrix UPM profile, then
+    for an Autometrix profile.  If it finds neither,
+    the user is assumed to already be migrated.
+
+.NOTES
+    Author: Chase Adkison - cadkison@ivision.com
+
+.PARAMETER SharePath
+    Specifies the remote share path to the location
+    of the Citrix UPM and Autometrix profile folders.
+
+.PARAMETER IncludeSettings
+    Specifies the location of a settings include file.
+    This file is used to filter which settings will
+    be included in the migration.
+
+    If no settings include file is specified, all
+    settings will be excluded by default.
+
+.PARAMETER IncludeData
+    Specifies the location of a data include file.
+    This file is used to filter which files and folders
+    will be included in the migration.
+
+    If no data include file is specified, all data
+    will be excluded by default.
+
+.PARAMETER ExcludeSettings
+    Specifies the location of a settings exclude file.
+    This file is used to filter which settings will
+    be excluded from the migration.
+
+.PARAMETER ExcludeData
+    Specifies the location of a data exclude file.
+    This file is used to filter which files and folders
+    will be excluded from the migration.
+
+.PARAMETER LogPath
+    Specifies the location where a log file will be
+    created.  If not specified, a log file will be
+    created in the user's local profile.
+
+.PARAMETER Force
+    Forces a migration attempt.
+    
+    When this switch is not used, the script will exit
+    without performing the migration if it detects a
+    previous attempt.
+
+.PARAMETER PassThru
+    With this switch enabled, the script will pass an
+    object to the pipeline that contains a representation
+    of the user profile folders, files and registry settings
+    that were migrated.
+
+.EXAMPLE
+    EHProfMig.ps1 -SharePath '\\server\profiles' -IncludeSettings '.\SetIn.txt' -IncludeData '.\DataIn.txt' -ExcludeSettings '.\SetEx.txt' -ExcludeData '.\DataEx.txt'
+
+    Sample log output:
+
+    11/3/2015 11:17:11 AM Log file created.
+    11/3/2015 11:17:11 AM Begin operation. User: username on Computer: EHPC00001
+    11/3/2015 11:17:11 AM Validating params: @{SharePath=\\server\profiles; 
+    IncludeSettings=.\SetIn.txt; IncludeData=.\DataIn.txt; ExcludeSettings=.\SetEx.txt; 
+    ExcludeData=.\DataEx.txt; LogPath=.\}
+    11/3/2015 11:17:11 AM Searching for user profile.
+    11/3/2015 11:17:11 AM Found Citrix UPM profile.
+    11/3/2015 11:17:11 AM Locating user data.
+    11/3/2015 11:17:11 AM Data location loaded.
+    11/3/2015 11:17:11 AM Processing data include file.
+    11/3/2015 11:17:11 AM Data include file applied.
+    11/3/2015 11:17:11 AM Processing data exclude file.
+    11/3/2015 11:17:11 AM Data exclude file applied.
+    11/3/2015 11:17:11 AM Copying user data to local profile.
+    11/3/2015 11:17:11 AM User profile data copied.
+    11/3/2015 11:17:11 AM Loading registry settings.
+    11/3/2015 11:17:11 AM Registry settings loaded.
+    11/3/2015 11:17:11 AM Processing settings include file.
+    11/3/2015 11:17:11 AM Settings include file applied.
+    11/3/2015 11:17:11 AM Processing settings exclude file.
+    11/3/2015 11:17:11 AM Settings exclude file applied.
+    11/3/2015 11:17:11 AM Importing registry settings.
+    11/3/2015 11:17:11 AM Reg: The operation completed successfully.
+    11/3/2015 11:17:11 AM User registry settings imported.
+    11/3/2015 11:17:11 AM Operation completed successfully.
+    11/3/2015 11:17:11 AM Exiting.
+#>
+
+[CmdletBinding()]
 param (
     [Parameter(Mandatory=0,Position=0)][string]$SharePath='',
     [Parameter(Mandatory=0,Position=1)][string]$IncludeSettings='',
