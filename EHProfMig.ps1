@@ -71,7 +71,7 @@
     11/3/2015 11:17:11 AM Begin operation. User: username on Computer: EHPC00001
     11/3/2015 11:17:11 AM Validating params: @{SharePath=\\server\profiles; 
     IncludeSettings=.\SetIn.txt; IncludeData=.\DataIn.txt; ExcludeSettings=.\SetEx.txt; 
-    ExcludeData=.\DataEx.txt; LogPath=.\}
+    ExcludeData=.\DataEx.txt; LogPath=}
     11/3/2015 11:17:11 AM Searching for user profile.
     11/3/2015 11:17:11 AM Found Citrix UPM profile.
     11/3/2015 11:17:11 AM Locating user data.
@@ -97,7 +97,7 @@
 
 [CmdletBinding()]
 param (
-    [Parameter(Mandatory=0,Position=0)][string]$SharePath='',
+    [Parameter(Mandatory=0,Position=0)][string]$SharePath='\\euh\ehc',
     [Parameter(Mandatory=0,Position=1)][string]$IncludeSettings='',
     [Parameter(Mandatory=0,Position=2)][string]$IncludeData='',
     [Parameter(Mandatory=0,Position=3)][string]$ExcludeSettings='',
@@ -124,14 +124,23 @@ if(!(Test-Path $LogFile -PathType Leaf)){(Get-Date).ToString() + ' Log file crea
 #endregion Logging
 
 #region ## Constants ##
-$CMPATH = 'CM Profiles'
-$CMPROFILEPATH = "$SharePath\$CMPATH\$env:USERNAME"
+#Script
+$LOCALUSERPROFILE = $env:USERPROFILE
+
+## Testing ##
+## Comment the following line for production
+$LOCALUSERPROFILE = "$env:USERPROFILE\EMORYTESTMIG" #create this folder manually
+
+#Citrix
+$CMPATH = 'Users'
+$CMPROFILEPATH = "$SharePath\$CMPATH\$env:USERNAME\upm\xd_$env:USERNAME\UPM_Profile"
 $CMREGPATH = "$CMPROFILEPATH"
 $CMREGFILE = 'ntuser.reg'
 $CMDATAPATH = "$CMPROFILEPATH"
 
-$AMPATH = 'AM Profiles'
-$AMPROFILEPATH = "$SharePath\$AMPATH\$env:USERNAME"
+#Autometrix
+$AMPATH = 'shares\vdtprofiles'
+$AMPROFILEPATH = "$SharePath\$AMPATH\$env:USERNAME\settings\prd-vdt5_0"
 $AMREG = "$env:USERNAME"+'_settings'
 $AMREGZIP = "$AMREG"+'.zip'
 $AMREGPATH = "$AMPROFILEPATH\$AMREGZIP"
@@ -140,17 +149,23 @@ $AMDATA = "$env:USERNAME"+'_data'
 $AMDATAZIP = "$AMDATA"+'.zip'
 $AMDATAPATH = "$AMPROFILEPATH\$AMDATAZIP"
 $TMPSUFFIX = (Get-Date).Subtract((Get-Date -Date '1/1/2012')).Ticks
-$AMLOCALTMP = "$env:USERPROFILE\"+'AMProfileTmp'+"$TMPSUFFIX"
+$AMLOCALTMP = "$LOCALUSERPROFILE\"+'AMProfileTmp'+"$TMPSUFFIX"
 $AMLOCALREGZIP = "$AMLOCALTMP\$AMREGZIP"
 $AMLOCALREGPATH = "$AMLOCALTMP\$AMREG"
 $AMLOCALDATAZIP = "$AMLOCALTMP\$AMDATAZIP"
 $AMLOCALDATAPATH = "$AMLOCALTMP\$AMDATA"
 
+#Registry
 $REGHEADER = 'Windows Registry Editor Version 5.00'
-$REGTMPKEYPREFIX = 'HKEY_LOCAL_MACHINE\UserReg'
+$REGTMPKEYPREFIX = 'HKEY_LOCAL_MACHINE\UserReg' #from ntuser2reg.exe
 $REGKEYPREFIX = 'HKEY_CURRENT_USER'
 $REGTMPFILE = 'ntuser_'+"$env:USERNAME"+'.reg'
-$REGTMPPATH = "$env:USERPROFILE\$REGTMPFILE"
+$REGTMPPATH = "$LOCALUSERPROFILE\$REGTMPFILE"
+
+## Testing ##
+## Comment the following line for production
+$REGKEYPREFIX = 'HKEY_CURRENT_USER\EMORYTESTMIG'
+
 #endregion Constants
 
 #region ## Functions ##
@@ -388,8 +403,6 @@ function Set-Settings(){
         if($UP.Reg.Count -gt 1){
             Append-Log 'Importing registry settings.'
             Set-Content -Value $UP.Reg -Path $REGTMPPATH -Encoding Unicode
-            #$RegMsg = (reg.exe import $REGTMPPATH) | Out-String
-            #Append-Log "Reg: $RegMsg"
             $rCmd = 'reg.exe'
             $rArgs = @('import',"$REGTMPPATH")
             $r = New-Object System.Diagnostics.Process
@@ -426,13 +439,15 @@ function Set-Data(){
     try{
         if($UP.Data){
             Append-Log 'Copying user data to local profile.'
+            Get-ChildItem -Directory $UP.DataPath -Force | ?{$_.FullName -in (Split-Path $up.Data.FullName)} | %{
+                $Destination = $LOCALUSERPROFILE + $_.FullName.Substring($UP.DataPath.length)
+                if(!(Test-Path $Destination -PathType Container)){New-Item -Path $Destination -ItemType directory -Force}
+            }
             $UP.Data | %{
-                $Destination = $env:USERPROFILE + $_.FullName.Substring($UP.DataPath.length)
-                if($_.psiscontainer -and !(Test-Path $Destination -PathType Container)){
-                    New-Item -Path $Destination -ItemType 'Container'
-                } else {
-                    Copy-Item $_.fullname -Destination $Destination -Force
-                }
+                $Destination = $LOCALUSERPROFILE + $_.FullName.Substring($UP.DataPath.length)
+                if($_.PSIsContainer -and !(Test-Path $Destination -PathType Container)){
+                    New-Item -Path $Destination -ItemType directory -Force
+                } else {Copy-Item $_.FullName -Destination $Destination -Force}
             }
             Append-Log 'User profile data copied.'
         } else {
