@@ -349,8 +349,8 @@ function Set-Data(){
             }
             $UP.Data | %{
                 $Destination = $LOCALUSERPROFILE + $_.FullName.Substring($UP.DataPath.length)
-                if($_.PSIsContainer -and !(Test-Path $Destination -PathType Container)){
-                    New-Item -Path $Destination -ItemType directory -Force
+                if($_.PSIsContainer){
+                    if(!(Test-Path $Destination -PathType Container)){New-Item -Path $Destination -ItemType directory -Force}
                 } else {Copy-Item $_.FullName -Destination $Destination -Force}
             }
             Append-Log 'User profile data copied.'
