@@ -1,101 +1,4 @@
-﻿<#
-.SYNOPSIS
-    Migrates user profile data and registry settings.
-
-.DESCRIPTION
-    This tool migrates user data and registry settings
-    from one of two posible locations to the user's
-    local profile.
-
-    It searches first for a Citrix UPM profile, then
-    for an Autometrix profile.  If it finds neither,
-    the user is assumed to already be migrated.
-
-.NOTES
-    Author: Chase Adkison - cadkison@ivision.com
-
-.PARAMETER SharePath
-    Specifies the remote share path to the location
-    of the Citrix UPM and Autometrix profile folders.
-
-.PARAMETER IncludeSettings
-    Specifies the location of a settings include file.
-    This file is used to filter which settings will
-    be included in the migration.
-
-    If no settings include file is specified, all
-    settings will be excluded by default.
-
-.PARAMETER IncludeData
-    Specifies the location of a data include file.
-    This file is used to filter which files and folders
-    will be included in the migration.
-
-    If no data include file is specified, all data
-    will be excluded by default.
-
-.PARAMETER ExcludeSettings
-    Specifies the location of a settings exclude file.
-    This file is used to filter which settings will
-    be excluded from the migration.
-
-.PARAMETER ExcludeData
-    Specifies the location of a data exclude file.
-    This file is used to filter which files and folders
-    will be excluded from the migration.
-
-.PARAMETER LogPath
-    Specifies the location where a log file will be
-    created.  If not specified, a log file will be
-    created in the user's local profile.
-
-.PARAMETER Force
-    Forces a migration attempt.
-    
-    When this switch is not used, the script will exit
-    without performing the migration if it detects a
-    previous attempt.
-
-.PARAMETER PassThru
-    With this switch enabled, the script will pass an
-    object to the pipeline that contains a representation
-    of the user profile folders, files and registry settings
-    that were migrated.
-
-.EXAMPLE
-    EHProfMig.ps1 -SharePath '\\server\profiles' -IncludeSettings '.\SetIn.txt' -IncludeData '.\DataIn.txt' -ExcludeSettings '.\SetEx.txt' -ExcludeData '.\DataEx.txt'
-
-    Sample log output:
-
-    11/3/2015 11:17:11 AM Log file created.
-    11/3/2015 11:17:11 AM Begin operation. User: username on Computer: EHPC00001
-    11/3/2015 11:17:11 AM Validating params: @{SharePath=\\server\profiles; 
-    IncludeSettings=.\SetIn.txt; IncludeData=.\DataIn.txt; ExcludeSettings=.\SetEx.txt; 
-    ExcludeData=.\DataEx.txt; LogPath=}
-    11/3/2015 11:17:11 AM Searching for user profile.
-    11/3/2015 11:17:11 AM Found Citrix UPM profile.
-    11/3/2015 11:17:11 AM Locating user data.
-    11/3/2015 11:17:11 AM Data location loaded.
-    11/3/2015 11:17:11 AM Processing data include file.
-    11/3/2015 11:17:11 AM Data include file applied.
-    11/3/2015 11:17:11 AM Processing data exclude file.
-    11/3/2015 11:17:11 AM Data exclude file applied.
-    11/3/2015 11:17:11 AM Copying user data to local profile.
-    11/3/2015 11:17:11 AM User profile data copied.
-    11/3/2015 11:17:11 AM Loading registry settings.
-    11/3/2015 11:17:11 AM Registry settings loaded.
-    11/3/2015 11:17:11 AM Processing settings include file.
-    11/3/2015 11:17:11 AM Settings include file applied.
-    11/3/2015 11:17:11 AM Processing settings exclude file.
-    11/3/2015 11:17:11 AM Settings exclude file applied.
-    11/3/2015 11:17:11 AM Importing registry settings.
-    11/3/2015 11:17:11 AM Reg: The operation completed successfully.
-    11/3/2015 11:17:11 AM User registry settings imported.
-    11/3/2015 11:17:11 AM Operation completed successfully.
-    11/3/2015 11:17:11 AM Exiting.
-#>
-
-[CmdletBinding()]
+﻿[CmdletBinding()]
 param (
     [Parameter(Mandatory=0,Position=0)][string]$SharePath='\\euh\ehc',
     [Parameter(Mandatory=0,Position=1)][string]$IncludeSettings='',
@@ -129,7 +32,7 @@ $LOCALUSERPROFILE = $env:USERPROFILE
 
 ## Testing ##
 ## Comment the following line for production
-$LOCALUSERPROFILE = "$env:USERPROFILE\EMORYTESTMIG" #create this folder manually
+#$LOCALUSERPROFILE = "$env:USERPROFILE\EMORYTESTMIG" #create this folder manually
 
 #Citrix
 $CMPATH = 'Users'
@@ -157,14 +60,15 @@ $AMLOCALDATAPATH = "$AMLOCALTMP\$AMDATA"
 
 #Registry
 $REGHEADER = 'Windows Registry Editor Version 5.00'
-$REGTMPKEYPREFIX = 'HKEY_LOCAL_MACHINE\UserReg' #from ntuser2reg.exe
 $REGKEYPREFIX = 'HKEY_CURRENT_USER'
 $REGTMPFILE = 'ntuser_'+"$env:USERNAME"+'.reg'
 $REGTMPPATH = "$LOCALUSERPROFILE\$REGTMPFILE"
 
 ## Testing ##
 ## Comment the following line for production
-$REGKEYPREFIX = 'HKEY_CURRENT_USER\EMORYTESTMIG'
+#$REGKEYPREFIX = 'HKEY_CURRENT_USER\EMORYTESTMIG'
+
+$REGKEY = 'HKEY_CURRENT_USER'
 
 #endregion Constants
 
@@ -175,10 +79,11 @@ function Append-Log([string]$msg){
     Write-Verbose $msg
     Write-Debug $msg
 }
-function Die([string]$msg){Append-Log $msg; throw $msg}
 function CleanUp-Session(){
     if(Test-Path $AMLOCALTMP -PathType Container){Remove-Item $AMLOCALTMP -Recurse -Force}
+    if(Test-Path $REGTMPPATH -PathType Leaf){Remove-Item $REGTMPPATH -Force}
 }
+function Die([string]$msg){Append-Log $msg; CleanUp-Session; throw $msg}
 function Unzip-File(){
     param([string]$Path,[string]$Destination)
     [System.IO.Compression.ZipFile]::ExtractToDirectory($Path,$Destination)
@@ -229,7 +134,6 @@ function Get-UserProfile(){
                 Append-Log 'Error copying/extracting Autometrix zip files to local machine.'
                 Append-Log $_.Exception.ItemName
                 Append-Log $_.Exception.Message
-                CleanUp-Session
                 Die 'Aborting.'
             }
             $UP.Type = 'AM'
@@ -256,7 +160,14 @@ function Get-Settings(){
         if($UP.SettingsPath){
             $UP.Reg = $UP.SettingsPath | Get-Content
             if($UP.Reg){
-                $UP.Reg = $UP.Reg.replace("$REGTMPKEYPREFIX","$REGKEYPREFIX")
+                if($UP.Type -eq 'CM'){
+                    $RegTmpKeyPrefix = $UP.Reg[2].Trim('[').Trim(']')
+                    $UP.Reg = $UP.Reg.replace("$RegTmpKeyPrefix","$REGKEYPREFIX")
+                } else {
+                    if($REGKEYPREFIX -ne $REGKEY){
+                        $UP.Reg = $UP.Reg.replace("$REGKEY","$REGKEYPREFIX")
+                    }
+                }
             } else {
                 $UP.Reg = "$REGHEADER"
                 Append-Log 'Warning: Registry files contain no settings.'
@@ -271,7 +182,6 @@ function Get-Settings(){
         Append-Log 'Error processing registry settings.'
         Append-Log $_.Exception.ItemName
         Append-Log $_.Exception.Message
-        CleanUp-Session
         Die 'Aborting.'
     }
 }
@@ -286,7 +196,6 @@ function Get-Data(){
         Append-Log 'Error locating data.'
         Append-Log $_.Exception.ItemName
         Append-Log $_.Exception.Message
-        CleanUp-Session
         Die 'Aborting.'
     }
 }
@@ -320,7 +229,6 @@ function Include-Settings(){
         Append-Log 'Error processing settings include file.'
         Append-Log $_.Exception.ItemName
         Append-Log $_.Exception.Message
-        CleanUp-Session
         Die 'Aborting.'
     }
 }
@@ -342,7 +250,6 @@ function Include-Data(){
         Append-Log 'Error processing data include file.'
         Append-Log $_.Exception.ItemName
         Append-Log $_.Exception.Message
-        CleanUp-Session
         Die 'Aborting.'
     }
 }
@@ -372,7 +279,6 @@ function Exclude-Settings(){
         Append-Log 'Error processing settings include file.'
         Append-Log $_.Exception.ItemName
         Append-Log $_.Exception.Message
-        CleanUp-Session
         Die 'Aborting.'
     }
 }
@@ -393,7 +299,6 @@ function Exclude-Data(){
         Append-Log 'Error processing data exclude file.'
         Append-Log $_.Exception.ItemName
         Append-Log $_.Exception.Message
-        CleanUp-Session
         Die 'Aborting.'
     }
 }
@@ -430,7 +335,6 @@ function Set-Settings(){
         Append-Log 'Error importing registry settings.'
         Append-Log $_.Exception.ItemName
         Append-Log $_.Exception.Message
-        CleanUp-Session
         Die 'Aborting.'
     }
 }
@@ -458,7 +362,6 @@ function Set-Data(){
         Append-Log 'Error copying files to local profile.'
         Append-Log $_.Exception.ItemName
         Append-Log $_.Exception.Message
-        CleanUp-Session
         Die 'Aborting.'
     }
 }
@@ -468,20 +371,16 @@ function Set-Data(){
 Append-Log "Begin operation. User: $env:USERNAME on Computer: $env:COMPUTERNAME"
 Validate-Params
 
-if(!(Test-Path $REGTMPPATH -PathType Leaf) -or $Force){
-    $UserProfile = Get-UserProfile
-    if($UserProfile.Type -ne 'FS'){
-        $UserProfile = $UserProfile | Get-Data | Include-Data | Exclude-Data | Set-Data
-        $UserProfile = $UserProfile | Get-Settings | Include-Settings | Exclude-Settings | Set-Settings
-        if($PassThru){$UserProfile}
-    }
-} else {
-    Append-Log 'User has already been migrated.'
+$UserProfile = Get-UserProfile
+if($UserProfile.Type -ne 'FS'){
+    $UserProfile = $UserProfile | Get-Data | Include-Data | Exclude-Data | Set-Data
+    $UserProfile = $UserProfile | Get-Settings | Include-Settings | Exclude-Settings | Set-Settings
+    if($PassThru){$UserProfile}
 }
 #endregion Main
 
 #region ## Cleanup ##
-if($UserProfile.Type -eq 'AM'){CleanUp-Session}
+if($UserProfile.Type -ne 'FS'){CleanUp-Session}
 Append-Log 'Operation completed successfully.'
 Append-Log 'Exiting.'
 #endregion Cleanup
