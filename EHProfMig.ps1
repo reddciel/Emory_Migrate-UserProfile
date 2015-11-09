@@ -160,14 +160,28 @@ function Get-Settings(){
         if($UP.SettingsPath){
             $UP.Reg = $UP.SettingsPath | Get-Content
             if($UP.Reg){
-                if($UP.Type -eq 'CM'){
+                if($UP.Type -eq 'CM'){ #remove temporary key added by ntuser2reg.exe
                     $RegTmpKeyPrefix = $UP.Reg[2].Trim('[').Trim(']')
                     $UP.Reg = $UP.Reg.replace("$RegTmpKeyPrefix","$REGKEYPREFIX")
                 } else {
-                    if($REGKEYPREFIX -ne $REGKEY){
+                    if($REGKEYPREFIX -ne $REGKEY){ #redirect reg mount if test constants enabled
                         $UP.Reg = $UP.Reg.replace("$REGKEY","$REGKEYPREFIX")
                     }
                 }
+                #Outlook profile reg keys
+                $O2010RegPath = "$REGKEYPREFIX\Software\Microsoft\Windows NT\CurrentVersion\Windows Messaging Subsystem\Profiles"
+                $O2013RegPath = "$REGKEYPREFIX\Software\Microsoft\Office\15.0\Outlook\Profiles"
+                $O2010Profile = $UP.Reg | ?{$_.StartsWith('"DefaultProfile"=')}
+                if($O2010Profile){
+                    $O2010Profile = $O2010Profile.Split('"')[3]
+                } else {
+                    $O2010Profile = 'EHC Outlook'
+                }
+                $O2013Profile = (Get-ItemProperty 'HKCU:\Software\Microsoft\Office\15.0\Outlook').DefaultProfile
+                if(!$O2013Profile){$O2013Profile = 'EHC Outlook'}
+                $O2010RegKey = "$O2010RegPath\$O2010Profile"
+                $O2013RegKey = "$O2013RegPath\$O2013Profile"
+                $UP.Reg = $UP.Reg.replace("$O2010REGKEY","$O2013REGKEY") #move outlook profile from 2010 to 2013
             } else {
                 $UP.Reg = "$REGHEADER"
                 Append-Log 'Warning: Registry files contain no settings.'
