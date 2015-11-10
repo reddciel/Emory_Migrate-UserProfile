@@ -203,7 +203,7 @@ function Get-Data(){
     param([Parameter(ValueFromPipeline=$true)][psobject]$UP)
     Append-Log 'Locating user data.'
     try{
-        $UP.Data = Get-ChildItem "$($UP.DataPath)" -Recurse
+        $UP.Data = Get-ChildItem "$($UP.DataPath)" -Recurse -Force
         Append-Log 'Data location loaded.'
         $UP
     }catch{
