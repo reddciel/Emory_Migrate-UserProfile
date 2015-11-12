@@ -30,8 +30,7 @@ if(!(Test-Path $LogFile -PathType Leaf)){(Get-Date).ToString() + ' Log file crea
 #Script
 $LOCALUSERPROFILE = $env:USERPROFILE
 
-## Testing ##
-## Comment the following line for production
+## Testing ## Comment the following line for production
 #$LOCALUSERPROFILE = "$env:USERPROFILE\EMORYTESTMIG" #create this folder manually
 
 #Citrix
@@ -64,12 +63,10 @@ $REGKEYPREFIX = 'HKEY_CURRENT_USER'
 $REGTMPFILE = 'ntuser_'+"$env:USERNAME"+'.reg'
 $REGTMPPATH = "$LOCALUSERPROFILE\$REGTMPFILE"
 
-## Testing ##
-## Comment the following line for production
+## Testing ## Comment the following line for production
 #$REGKEYPREFIX = 'HKEY_CURRENT_USER\EMORYTESTMIG'
 
 $REGKEY = 'HKEY_CURRENT_USER'
-
 #endregion Constants
 
 #region ## Functions ##
@@ -384,7 +381,6 @@ function Set-Data(){
 #region ## Main ##
 Append-Log "Begin operation. User: $env:USERNAME on Computer: $env:COMPUTERNAME"
 Validate-Params
-
 $UserProfile = Get-UserProfile
 if($UserProfile.Type -ne 'FS'){
     $UserProfile = $UserProfile | Get-Data | Include-Data | Exclude-Data | Set-Data
@@ -394,6 +390,8 @@ if($UserProfile.Type -ne 'FS'){
 #endregion Main
 
 #region ## Cleanup ##
+New-Item -Path 'HKCU:\Software\Microsoft\Office\15.0\Word\Options' -Force | Out-Null
+New-ItemProperty -Path 'HKCU:\Software\Microsoft\Office\15.0\Word\Options' -Name 'MigrateNormalOnFirstBoot' -Value 1 -PropertyType 'DWord' | Out-Null
 if($UserProfile.Type -ne 'FS'){CleanUp-Session}
 Append-Log 'Operation completed successfully.'
 Append-Log 'Exiting.'
