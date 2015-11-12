@@ -171,7 +171,7 @@ function Get-Settings(){
                 #Outlook profile reg keys
                 $O2010RegPath = "$REGKEYPREFIX\Software\Microsoft\Windows NT\CurrentVersion\Windows Messaging Subsystem\Profiles"
                 $O2013RegPath = "$REGKEYPREFIX\Software\Microsoft\Office\15.0\Outlook\Profiles"
-                $O2010Profile = $UP.Reg | ?{$_.StartsWith('"DefaultProfile"=')}
+                $O2010Profile = $UP.Reg | ?{$_.StartsWith('"DefaultProfile"=',1)}
                 if($O2010Profile){
                     $O2010Profile = $O2010Profile.Split('"')[3]
                 } else {
@@ -224,8 +224,8 @@ function Include-Settings(){
                 $UP.Reg = $UP.Reg | %{
                     foreach ($line in $include){
                         if($line -eq ''){continue}
-                        if($_.StartsWith("[$REGKEYPREFIX")){$Script:delete = $true}
-                        if($_.StartsWith("[$REGKEYPREFIX$line") -and $_ -ne "[$REGKEYPREFIX]"){$Script:delete = $false; break}
+                        if($_.StartsWith("[$REGKEYPREFIX",1)){$Script:delete = $true}
+                        if($_ -ilike "*$REGKEYPREFIX$line" -and $_ -ne "[$REGKEYPREFIX]"){$Script:delete = $false; break}
                     }
                     if(!$Script:delete){$_}
                 }
@@ -278,8 +278,8 @@ function Exclude-Settings(){
                 $UP.Reg = $UP.Reg | %{
                     foreach ($line in $exclude){
                         if($line -eq ''){continue}
-                        if($_.StartsWith("[$REGKEYPREFIX")){$Script:delete = $false}
-                        if($_.StartsWith("[$REGKEYPREFIX$line")){$Script:delete = $true; break}
+                        if($_.StartsWith("[$REGKEYPREFIX",1)){$Script:delete = $false}
+                        if($_ -ilike "*$REGKEYPREFIX$line"){$Script:delete = $true; break}
                     }
                     if(!$Script:delete){$_}
                 }
