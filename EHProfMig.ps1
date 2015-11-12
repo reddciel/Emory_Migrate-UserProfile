@@ -387,11 +387,11 @@ if($UserProfile.Type -ne 'FS'){
     $UserProfile = $UserProfile | Get-Settings | Include-Settings | Exclude-Settings | Set-Settings
     if($PassThru){$UserProfile}
 }
+New-Item -Path 'HKCU:\Software\Microsoft\Office\15.0\Word\Options' -Force | Out-Null
+New-ItemProperty -Path 'HKCU:\Software\Microsoft\Office\15.0\Word\Options' -Name 'MigrateNormalOnFirstBoot' -Value 1 -PropertyType 'DWord' | Out-Null
 #endregion Main
 
 #region ## Cleanup ##
-New-Item -Path 'HKCU:\Software\Microsoft\Office\15.0\Word\Options' -Force | Out-Null
-New-ItemProperty -Path 'HKCU:\Software\Microsoft\Office\15.0\Word\Options' -Name 'MigrateNormalOnFirstBoot' -Value 1 -PropertyType 'DWord' | Out-Null
 if($UserProfile.Type -ne 'FS'){CleanUp-Session}
 Append-Log 'Operation completed successfully.'
 Append-Log 'Exiting.'
