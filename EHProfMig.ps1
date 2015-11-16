@@ -62,6 +62,7 @@ $REGHEADER = 'Windows Registry Editor Version 5.00'
 $REGKEYPREFIX = 'HKEY_CURRENT_USER'
 $REGTMPFILE = 'ntuser_'+"$env:USERNAME"+'.reg'
 $REGTMPPATH = "$LOCALUSERPROFILE\$REGTMPFILE"
+$FSLogixRegKey = 'HKCU:\Software\Microsoft\Office\15.0\Outlook\Profiles\EHC Outlook'
 
 ## Testing ## Comment the following line for production
 #$REGKEYPREFIX = 'HKEY_CURRENT_USER\EMORYTESTMIG'
@@ -106,6 +107,12 @@ function Validate-Params(){
 function Get-UserProfile(){
     Append-Log 'Searching for user profile.'
     $UP = '' | Select-Object Type,SettingsPath,DataPath,Reg,Data
+    if(Test-Path 'HKCU:\Software\Microsoft\Office\15.0\Outlook\Profiles\EHC Outlook'){
+        Append-Log 'Found FS-Logix profile.'
+        Append-Log 'User has already been migrated.'
+        $UP.Type = 'FS'
+        return $UP
+    }
     if(Test-Path "$CMPROFILEPATH" -PathType Container){
         # Citrix UPM
         Append-Log 'Found Citrix UPM profile.'
@@ -386,9 +393,9 @@ if($UserProfile.Type -ne 'FS'){
     $UserProfile = $UserProfile | Get-Data | Include-Data | Exclude-Data | Set-Data
     $UserProfile = $UserProfile | Get-Settings | Include-Settings | Exclude-Settings | Set-Settings
     if($PassThru){$UserProfile}
+    New-Item -Path 'HKCU:\Software\Microsoft\Office\15.0\Word\Options' -Force | Out-Null
+    New-ItemProperty -Path 'HKCU:\Software\Microsoft\Office\15.0\Word\Options' -Name 'MigrateNormalOnFirstBoot' -Value 1 -PropertyType 'DWord' | Out-Null
 }
-New-Item -Path 'HKCU:\Software\Microsoft\Office\15.0\Word\Options' -Force | Out-Null
-New-ItemProperty -Path 'HKCU:\Software\Microsoft\Office\15.0\Word\Options' -Name 'MigrateNormalOnFirstBoot' -Value 1 -PropertyType 'DWord' | Out-Null
 #endregion Main
 
 #region ## Cleanup ##
