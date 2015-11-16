@@ -107,7 +107,7 @@ function Validate-Params(){
 function Get-UserProfile(){
     Append-Log 'Searching for user profile.'
     $UP = '' | Select-Object Type,SettingsPath,DataPath,Reg,Data
-    if(Test-Path 'HKCU:\Software\Microsoft\Office\15.0\Outlook\Profiles\EHC Outlook'){
+    if(!$Force -and (Test-Path 'HKCU:\Software\Microsoft\Office\15.0\Outlook\Profiles\EHC Outlook')){
         Append-Log 'Found FS-Logix profile.'
         Append-Log 'User has already been migrated.'
         $UP.Type = 'FS'
